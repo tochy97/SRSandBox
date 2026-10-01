@@ -1,0 +1,9 @@
+[submodule "SRMessage"]
+	path = SRMessage
+	url = https://github.com/tochy97/SRMessage
+[submodule "SR_Front"]
+	path = SR_Front
+	url = https://github.com/tochy97/SR_Front
+[submodule "ShadowRuler"]
+	path = ShadowRuler
+	url = https://github.com/tochy97/ShadowRuler/

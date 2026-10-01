@@ -1,0 +1,14 @@
+# What the sandbox makes when it runs, which is nobody's to commit.
+#
+# start.ps1 publishes each API into a folder of its own and points both of them
+# at folders beside it for everything they write. All three are built from the
+# submodules on demand: a clone of this repository and one run of the script
+# makes them again.
+#
+#   server/   the game API, built, with its logs under server/logs
+#   chat/     the chat API, built, with its logs under chat/logs
+#   pics/     every picture a player puts up, kept apart from both services
+#             because a face outlives any number of rebuilds of either
+server/
+chat/
+pics/
