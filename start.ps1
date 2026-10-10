@@ -18,14 +18,28 @@
 
     What the sandbox holds once it has been run:
 
-        server\                 the game API, built
-        server\logs\api\        everything the game says but the database
-        server\logs\db\         what the database says
-        chat\                   the chat API, built
-        chat\logs\api\          everything the chat says but the database
-        chat\logs\db\           what its database says
-        chat\logs\rooms\        a folder a day: the sockets, and each room
+        game\build\             the game API, built
+        game\logs\<date>\       its api.log and db.log for that day
+        chat\build\             the chat API, built
+        chat\logs\<date>\       its api.log and db.log for that day
+        chat\logs\rooms\<date>\ the sockets, and each room spoken in
         pics\                   every picture a player puts up
+
+    A build goes in a folder of its own inside each: what a build makes and
+    what a service writes are two different kinds of thing, and in one listing
+    the eighty-odd files of the first bury the two of the second.
+
+    A folder for the day, and the day's logs in it: what is wanted is almost
+    always a particular day, and the two halves of one day's trouble read
+    together. The folder is chosen as each line is written rather than when
+    the service starts, so one left up over midnight moves into the new day
+    with the day.
+
+    Every run empties both build folders before publishing into them, so each
+    holds what this build made rather than the sum of every build that ever
+    ran: a publish only ever adds, and a file dropped from a project would
+    otherwise stay behind for good. Nothing else is touched. The logs sit
+    beside the build rather than in it, and the pictures are in neither.
 
     The three folders stand beside each other on purpose: the pictures are
     the one thing in here that is neither service's to own, and a player's
@@ -72,8 +86,12 @@ if (-not $root) { $root = "D:\src\SRSandBox" }
 
 # Where everything the running services write ends up. Named once here, handed
 # to the services as they start, and made before any of them is.
-$serverDir = Join-Path $root "server"
+$gameDir   = Join-Path $root "game"
 $chatDir   = Join-Path $root "chat"
+# And where the build itself is dumped: a folder of its own inside each, so
+# what a build makes and what a service writes are never in the same listing.
+$gameBuild = Join-Path $gameDir "build"
+$chatBuild = Join-Path $chatDir "build"
 $picsDir   = Join-Path $root "pics"
 
 # Named once, because four things read each of these: what is installed, what
@@ -85,13 +103,14 @@ $services = @(
         Path    = Join-Path $root "ShadowRuler"
         Install = "dotnet restore ShadowRuler.sln"
         # Published rather than built: a publish is the whole of what the
-        # service needs in one folder, which is what "server" is for.
-        Build   = "dotnet publish ShadowRuler.API -c Debug -o `"$serverDir`" --nologo -v q"
+        # service needs in one folder, which is what "game" is for.
+        Out     = $gameBuild
+        Build   = "dotnet publish ShadowRuler.API -c Debug -o `"$gameBuild`" --nologo -v q"
         Start   = "dotnet run --project ShadowRuler.API --launch-profile http"
         Port    = 5220
         # What the window it runs in is told before it starts.
         Env     = @{
-            "Logs__Path"      = (Join-Path $serverDir "logs")
+            "Logs__Path"      = (Join-Path $gameDir "logs")
             "Pictures__Root"  = $picsDir
         }
     },
@@ -100,7 +119,8 @@ $services = @(
         Name    = "SRMessage"
         Path    = Join-Path $root "SRMessage"
         Install = "dotnet restore SRMessage.sln"
-        Build   = "dotnet publish SRMessage.API -c Debug -o `"$chatDir`" --nologo -v q"
+        Out     = $chatBuild
+        Build   = "dotnet publish SRMessage.API -c Debug -o `"$chatBuild`" --nologo -v q"
         Start   = "dotnet run --project SRMessage.API"
         Port    = 50776
         Env     = @{
@@ -112,9 +132,17 @@ $services = @(
         Name    = "SR_Front"
         Path    = Join-Path $root "SR_Front"
         Install = "npm install"
+        # Nothing to sweep: the app is not built into a folder here, and
+        # Metro's own cache is thrown away by the --clear it starts with.
+        Out     = $null
         # The nearest thing the app has to a compile, and what catches a
         # broken screen before Metro hands it to a phone.
-        Build   = "npx tsc --noEmit"
+        #
+        # node, not npx: npx spawns through a shell, and node says so on
+        # stderr every time it does ("DEP0190"). Nothing is wrong, but a block
+        # of red in the middle of a clean build is a thing people stop to
+        # read. This runs the same compiler the same way, quietly.
+        Build   = "node node_modules/typescript/bin/tsc --noEmit"
         Start   = "npx expo start --no-dev --minify --clear"
         Port    = 8081
         Env     = @{}
@@ -140,16 +168,37 @@ function Test-PortBusy([int]$port) {
     }
 }
 
+function Clear-Build([string]$dir, [string[]]$keep) {
+    # Everything in the folder but what is named: the build is swept away on
+    # every run, and what the service wrote is not. A publish only ever adds,
+    # so without this a file dropped from the project stays behind for good
+    # and the folder is the sum of every build that ever ran.
+    if (-not (Test-Path $dir)) { return }
+    Get-ChildItem -LiteralPath $dir -Force |
+        Where-Object { $keep -notcontains $_.Name } |
+        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+}
+
 function Invoke-In([string]$path, [string]$command, [string]$shell) {
     Push-Location $path
+    # What a build says on stderr is text, not a failure.
+    #
+    # This script runs with $ErrorActionPreference at Stop, and under that a
+    # line on a native command's stderr is a terminating error: npx writes
+    # node's own deprecation warning about how it spawns a process, and the
+    # whole run ended on it with nothing built and nothing started. The exit
+    # code is what says whether a build failed, and it is read below.
+    $was = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
     try {
         # Out-Host, not a bare call: what the build prints would otherwise be
         # the function's return value, and a restore that said two lines about
         # itself came back as an array of two lines and a nought, which is not
         # a nought and so read as a failure.
-        & $shell -NoProfile -Command $command | Out-Host
+        & $shell -NoProfile -Command $command 2>&1 | Out-Host
         return $LASTEXITCODE
     } finally {
+        $ErrorActionPreference = $was
         Pop-Location
     }
 }
@@ -203,8 +252,8 @@ if ($gameWanted) {
 }
 
 # ── the folders everything writes into ───────────────────────────────────
-foreach ($dir in @($serverDir, $chatDir, $picsDir,
-                   (Join-Path $serverDir "logs"), (Join-Path $chatDir "logs"))) {
+foreach ($dir in @($gameDir, $chatDir, $picsDir, $gameBuild, $chatBuild,
+                   (Join-Path $gameDir "logs"), (Join-Path $chatDir "logs"))) {
     if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
 }
 
@@ -234,6 +283,21 @@ if ($NoBuild) {
     Write-Host "Building" -ForegroundColor Cyan
     $failed = @()
     foreach ($s in $toRun) {
+        # The last build swept away first, and only that: the logs the service
+        # has written stay where they are, and the pictures are not in here at
+        # all. See Clear-Build.
+        if ($s.Out) {
+            # The service's own folder holds two things and nothing else: the
+            # build, and the logs. Anything loose beside them is from an older
+            # arrangement of this script, and goes.
+            Clear-Build (Split-Path $s.Out -Parent) @("logs", "build")
+            # "logs" is still named here, though nothing by that name is in a
+            # build folder: it costs nothing, and it is what stands between a
+            # slip of the Out path and a swept-away run of logs.
+            Clear-Build $s.Out @("logs")
+            $where = (Split-Path (Split-Path $s.Out -Parent) -Leaf) + "\" + (Split-Path $s.Out -Leaf)
+            Write-Host ("  {0,-12} emptied {1}" -f $s.Name, $where) -ForegroundColor DarkGray
+        }
         Write-Host ("  {0,-12} {1}" -f $s.Name, $s.Build) -ForegroundColor DarkGray
         # The build's own output is shown: a compile error is the one thing
         # anybody running this wants to read in full.
@@ -269,5 +333,5 @@ Write-Host "  Game API   http://localhost:5220/graphql" -ForegroundColor DarkGra
 Write-Host "  Chat API   http://localhost:50776" -ForegroundColor DarkGray
 Write-Host "  App        http://localhost:8081" -ForegroundColor DarkGray
 Write-Host ""
-Write-Host "  server\logs\api, server\logs\db, chat\logs\api, chat\logs\db, chat\logs\rooms, pics" -ForegroundColor DarkGray
+Write-Host "  game\build, game\logs\<date>, chat\build, chat\logs\<date>, chat\logs\rooms\<date>, pics" -ForegroundColor DarkGray
 Write-Host ""

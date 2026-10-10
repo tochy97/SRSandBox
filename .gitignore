@@ -5,10 +5,15 @@
 # submodules on demand: a clone of this repository and one run of the script
 # makes them again.
 #
-#   server/   the game API, built, with its logs under server/logs
-#   chat/     the chat API, built, with its logs under chat/logs
+#   game/     the game API, built, with a folder a day of logs under game/logs
+#   chat/     the chat API, built, the same, and the rooms' own record beside
 #   pics/     every picture a player puts up, kept apart from both services
 #             because a face outlives any number of rebuilds of either
-server/
-chat/
-pics/
+#
+# Anchored to the root with the leading slash: unanchored, "game/" and "chat/"
+# also matched DBScripts/game and DBScripts/chat, and kept every SQL script out
+# of the repository.
+/game/
+/chat/
+/pics/
+COMMIT_MESSAGES.md
