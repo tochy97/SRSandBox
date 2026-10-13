@@ -129,6 +129,10 @@ CREATE TABLE IF NOT EXISTS public."User"
     -- The player's picture: the file's name in the picture store on the
     -- server's disk, served under /pictures. Empty for the default.
     "Picture" text COLLATE pg_catalog."default" NOT NULL DEFAULT '',
+    -- The frame the picture is drawn in: 'roses', 'hearts', 'gold', 'silver'
+    -- or 'skulls', or empty for the plain edge. Drawn by the client and seen by
+    -- everybody the picture is -- see PreferenceMutations.SavePortraitBorder.
+    "PortraitBorder" text COLLATE pg_catalog."default" NOT NULL DEFAULT '',
     -- What has been knocked off the holding since it last stood whole. Its
     -- health is ten times its power less this, worked out rather than stored
     -- see User.Health and every raid on it that succeeds adds the
@@ -166,14 +170,32 @@ CREATE TABLE IF NOT EXISTS public."User"
     -- is that camp's arrival, and once the challenge is answered it is left as
     -- the stamp the next draw is held off (ChallengeMutations.RestMinutes).
     "ChallengeAt" timestamp with time zone,
-    -- The colours the player dresses their own army in, each 0xRRGGBB: armour,
-    -- clothing, shield, and the plume on their heroes' helmets. Null is "never
-    -- chosen", and the client draws its own defaults. Only ever seen by this
-    -- player -- see PreferenceMutations.
+    -- When the camp at the gate must be answered by: two minutes after it came,
+    -- or longer once the player has gone out to fight it by hand. Past it the
+    -- server answers for them (ChallengeMutations.AnswerForThem). Null while
+    -- no camp stands, and on one drawn before this was kept, which is held to
+    -- its arrival plus the two minutes.
+    "ChallengeAnswerBy" timestamp with time zone,
+    -- The colours the player dresses their troops in, each 0xRRGGBB: armour,
+    -- clothing, shield and plume. Null is "never chosen", and the client draws
+    -- its own defaults. Only ever seen by this player -- see PreferenceMutations.
     "ArmyArmour" integer,
     "ArmyCloth" integer,
     "ArmyShield" integer,
     "ArmyPlume" integer,
+    -- And the troops' accents (the gilt trim on helmet, armour and shield) and
+    -- accessories (the skirt and the boots). Null is "never chosen" here too.
+    "ArmyAccent" integer,
+    "ArmyAccessory" integer,
+    -- And their heroes, apart from the troops: the same four, with the plume
+    -- and the cloak. Null is "never chosen", and the client then dresses heroes
+    -- in the troops' colours above.
+    "HeroArmour" integer,
+    "HeroCloth" integer,
+    "HeroShield" integer,
+    "HeroPlume" integer,
+    "HeroAccent" integer,
+    "HeroAccessory" integer,
     -- Where the player is in the tutorial guide: the steps done, by the guide's
     -- own ids, and whether they asked it to stop. Kept here so a new device
     -- takes up where the old one left off.

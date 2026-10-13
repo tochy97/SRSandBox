@@ -191,3 +191,34 @@ CREATE TABLE IF NOT EXISTS public.read_marks
         ON DELETE CASCADE
 );
 
+-- A message taken back by whoever said it. Kept rather than dropped, so a
+-- report made against it still points at something, but never shown again:
+-- every read of the room, the inbox and the counts passes it over.
+ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS deleted_at timestamp with time zone;
+
+-- Where a message was said from: the sender's address and the socket it came
+-- in on ('http' for the plain call). Never handed to a client; written into
+-- Reported.log when somebody reports it -- see ChatLog.
+ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS sender_ip text;
+ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS sender_connection text;
+
+-- The bubble a player's words are drawn in: 'hearts', 'roses', 'skulls',
+-- 'gold' or 'silver', or empty for the plain one. Theirs, so every message
+-- they have said is drawn in whichever they wear now -- see ChatActions.
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS bubble text NOT NULL DEFAULT '';
+
+-- Table: public.message_likes
+--
+-- Who has liked what: one row a player a message, taken away again by
+-- unliking it. Gone with the message.
+CREATE TABLE IF NOT EXISTS public.message_likes
+(
+    message_id  uuid NOT NULL,
+    user_id     character(36) COLLATE pg_catalog."default" NOT NULL,
+    liked_at    timestamp with time zone NOT NULL DEFAULT NOW(),
+    CONSTRAINT message_likes_pkey PRIMARY KEY (message_id, user_id),
+    CONSTRAINT message_likes_message_fkey FOREIGN KEY (message_id)
+        REFERENCES public.messages (id)
+        ON DELETE CASCADE
+);
+
